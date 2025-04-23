@@ -32,6 +32,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    system: str = "You are a helpful forensic science chatbot."
 
 #@app.options("/chat")
 #async def options_handler():
@@ -40,11 +41,9 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    related_chunks = query_index(index, req.message, chunks)
-    context = "\n\n".join(related_chunks)
-    answer = ask_chatgpt(context, req.message)
-    html_response = markdown.markdown(answer)
-    return {"response": html_response}
+    answer = ask_chatgpt(req.message, req.system)
+    return {"response": answer}
+
     
 @app.get("/health")
 async def health():

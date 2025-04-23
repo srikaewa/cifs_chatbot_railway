@@ -53,17 +53,17 @@ def query_index(index, query, chunks, top_k=3):
     D, I = index.search(np.array([query_emb]), top_k)
     return [chunks[i] for i in I[0]]
 
-def ask_chatgpt(context: str, question: str) -> str:
-    messages = [
-        {"role": "system", "content": "คุณเป็นผู้เชี่ยวชาญด้านนิติวิทยาศาสตร์ พูดจาเป็นกันเองแต่ให้ข้อมูลครบถ้วน"},
-        {"role": "user", "content": f"จากข้อมูลนี้: \n\n{context}\n\nตอบคำถามต่อไปนี้:\n{question}"}
-    ]
-    response = openai.chat.completions.create(
-        model=GPT_MODEL,
-        messages=messages,
-        temperature=0.3
+def ask_chatgpt(prompt: str, system_msg: str) -> str:
+    response = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.4
     )
-    return response.choices[0].message.content.strip()
+    return response['choices'][0]['message']['content'].strip()
+
 
 # Build once on startup
 #paragraphs = load_text_from_docx("data/ความรู้เบื้องต้นด้านนิติวิทยาศาสตร์.docx")
