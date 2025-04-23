@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-#from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import openai
 import os
@@ -8,13 +8,13 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 
-#app.add_middleware(
-#    CORSMiddleware,
-#    allow_origins=["https://srikaewa.github.io"],
-#    allow_credentials=True,
-#    allow_methods=["*"],
-#    allow_headers=["*"],
-#)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://srikaewa.github.io"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ChatRequest(BaseModel):
     message: str
@@ -22,15 +22,19 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": req.system},
-            {"role": "user", "content": req.message}
-        ],
-        temperature=0.4
-    )
-    return {"response": response.choices[0].message.content.strip()}
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": req.system},
+                {"role": "user", "content": req.message}
+            ],
+            temperature=0.4
+        )
+        return {"response": response.choices[0].message.content.strip()}
+    except Exception as e:
+        print("❌ Error during OpenAI call:", e)
+        return {"response": "⚠️ Sorry, something went wrong on the server."}
 
 @app.get("/health")
 async def health():
