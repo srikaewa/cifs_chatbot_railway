@@ -1,9 +1,5 @@
 fastapi
-python-dotenv
-hypercorn
+uvicorn
 openai
-faiss-cpu
-python-docx
+python-dotenv
 requests
-tqdm
-markdown
