@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import openai
+from openai import OpenAI
 import os
 
 import traceback
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
@@ -25,7 +25,7 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": req.system},
@@ -36,7 +36,7 @@ async def chat(req: ChatRequest):
         return {"response": response.choices[0].message.content.strip()}
     except Exception as e:
         print("❌ OpenAI error:", e)
-        traceback.print_exc()
+        #traceback.print_exc()
         return {"response": f"⚠️ Server error: {str(e)}"}
 
 @app.get("/health")
