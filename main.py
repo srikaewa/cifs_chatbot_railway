@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import openai
 import os
 
+import traceback
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
@@ -33,8 +35,9 @@ async def chat(req: ChatRequest):
         )
         return {"response": response.choices[0].message.content.strip()}
     except Exception as e:
-        print("❌ Error during OpenAI call:", e)
-        return {"response": "⚠️ Sorry, something went wrong on the server."}
+        print("❌ OpenAI error:", e)
+        traceback.print_exc()
+        return {"response": f"⚠️ Server error: {str(e)}"}
 
 @app.get("/health")
 async def health():
