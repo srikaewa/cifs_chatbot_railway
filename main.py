@@ -7,6 +7,8 @@ from fastapi.responses import Response
 
 import os
 
+import markdown
+
 
 from pydantic import BaseModel
 from qa_engine import index, chunks, query_index, ask_chatgpt
@@ -41,7 +43,8 @@ async def chat(req: ChatRequest):
     related_chunks = query_index(index, req.message, chunks)
     context = "\n\n".join(related_chunks)
     answer = ask_chatgpt(context, req.message)
-    return {"response": answer}
+    html_response = markdown.markdown(answer)
+    return {"response": html_response}
     
 @app.get("/health")
 async def health():
