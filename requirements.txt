@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+hypercorn
 openai
 python-dotenv
 requests
