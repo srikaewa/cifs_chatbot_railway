@@ -88,7 +88,18 @@ async def line_webhook(request: Request, x_line_signature: str = Header(None)):
                 question = raw_text
 
             system_prompt = style_map.get(style, style_map["default"])
-            answer = ask_chatgpt(question, system_prompt)
+            
+            
+            #answer = ask_chatgpt(question, system_prompt)
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": question}
+                ]
+            )
+            answer = response.choices[0].message.content.strip()
 
             # 📤 Send reply to LINE
             requests.post(

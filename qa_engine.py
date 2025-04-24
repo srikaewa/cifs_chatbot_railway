@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from typing import List
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 EMBED_MODEL = "text-embedding-3-small"
 GPT_MODEL = "gpt-4o-mini"
