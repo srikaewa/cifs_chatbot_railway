@@ -1,10 +1,14 @@
-from fastapi import FastAPI, Request, Header, BackgroundTasks
+from fastapi import FastAPI, Request, Header, BackgroundTasks, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 import hashlib, hmac, base64, json
 import requests
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+import shutil
+
 import os
 
 import re
@@ -12,21 +16,16 @@ import re
 import traceback
 
 from qa_engine import index, chunks, query_index, ask_chatgpt
-
+from qa_engine import (
+    load_all_docx_from_folder,
+    split_into_chunks,
+    embed_chunks,
+    build_faiss_index,
+    query_index
+)
+import pickle
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-
-# Map @style to personality prompt
-style_map = {
-    "default": "You are a professional forensic science expert who answers with technical accuracy and clarity.",
-    "friendly": "You are a friendly forensic science tutor who explains with warmth and helpful emojis 🧬😊.",
-    "kid": "You explain forensic science to a 10-year-old using simple words and fun emojis 🧒🔍🧪.",
-    "robotic": "You respond with only facts in a serious, mechanical tone. No emotion or personality 🤖.",
-    "casual": "You're a laid-back forensic expert who uses emojis 😎 and humor in your answers."
-}
 
 app = FastAPI()
 
@@ -38,31 +37,82 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+    
+# Config
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+INDEX_PATH = Path("faiss_index.pkl")
+CHUNKS_PATH = Path("chunks.pkl")
+    
+# Serve static admin.html at /admin
+app.mount("/admin", StaticFiles(directory="static", html=True), name="admin")
+
+# Admin: Upload and process .docx
+@app.post("/upload")
+async def upload_docx(file: UploadFile = File(...)):
+    dest_path = DATA_DIR / file.filename
+    with open(dest_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    all_chunks = []
+    for docx_file in DATA_DIR.glob("*.docx"):
+        paras = load_all_docx_from_folder(str(DATA_DIR))
+        all_chunks = split_into_chunks(paras)
+
+    with open(CHUNKS_PATH, "wb") as f:
+        pickle.dump(all_chunks, f)
+
+    embeddings = embed_chunks(all_chunks)
+    index = build_faiss_index(embeddings)
+    with open(INDEX_PATH, "wb") as f:
+        pickle.dump(index, f)
+
+    return {"message": "File uploaded and index updated."}
+
+@app.get("/files")
+async def list_files():
+    return [f.name for f in DATA_DIR.glob("*.docx")]
+
+# Web Chat
 class ChatRequest(BaseModel):
     message: str
     system: str = "You are a helpful forensic science assistant."
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": req.system},
-                {"role": "user", "content": req.message}
-            ],
-            temperature=0.4
-        )
-        return {"response": response.choices[0].message.content.strip()}
-    except Exception as e:
-        print("❌ OpenAI error:", e)
-        #traceback.print_exc()
-        return {"response": f"⚠️ Server error: {str(e)}"}
+    with open(INDEX_PATH, "rb") as f:
+        index = pickle.load(f)
+    with open(CHUNKS_PATH, "rb") as f:
+        chunks = pickle.load(f)
+
+    top_chunks = query_index(index, req.message, chunks)
+    context = "\n\n".join(top_chunks)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": f"{req.system}\n{context}"},
+            {"role": "user", "content": req.message}
+        ]
+    )
+    return {"response": response.choices[0].message.content.strip()}
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
+# LINE webhook with personality and markdown stripping
+LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+# Map @style to personality prompt
+style_map = {
+    "default": "You are a professional forensic science expert who answers with technical accuracy and clarity.",
+    "friendly": "You are a friendly forensic science tutor who explains with warmth and helpful emojis 🧬😊.",
+    "kid": "You explain forensic science to a 10-year-old using simple words and fun emojis 🧒🔍🧪.",
+    "robotic": "You respond with only facts in a serious, mechanical tone. No emotion or personality 🤖.",
+    "casual": "You're a laid-back forensic expert who uses emojis 😎 and humor in your answers."
+}
 
 @app.post("/line-webhook")
 async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_line_signature: str = Header(default=None)):
@@ -91,6 +141,11 @@ def strip_markdown(md_text):
 
 def process_line_event(data):
     try:
+        with open(INDEX_PATH, "rb") as f:
+            index = pickle.load(f)
+        with open(CHUNKS_PATH, "rb") as f:
+            chunks = pickle.load(f)
+
         events = data.get("events", [])
         for event in events:
             if event.get("type") == "message" and event["message"].get("type") == "text":
@@ -107,21 +162,19 @@ def process_line_event(data):
 
                 system_msg = style_map.get(style, style_map["default"])
 
-                # Call OpenAI
+                top_chunks = query_index(index, prompt, chunks)
+                context = "\n\n".join(top_chunks)
+
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
-                        {"role": "system", "content": system_msg},
+                        {"role": "system", "content": f"{system_msg}\n{context}"},
                         {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.4
+                    ]
                 )
                 answer = response.choices[0].message.content.strip()
+                plain_answer = strip_markdown(answer)
 
-                # Remove markdown for LINE display
-                clean_answer = strip_markdown(answer)
-
-                # Send plain text reply to LINE
                 res = requests.post(
                     "https://api.line.me/v2/bot/message/reply",
                     headers={
@@ -130,7 +183,7 @@ def process_line_event(data):
                     },
                     json={
                         "replyToken": reply_token,
-                        "messages": [{"type": "text", "text": clean_answer}]
+                        "messages": [{"type": "text", "text": plain_answer}]
                     }
                 )
                 print("LINE reply status:", res.status_code, res.text)

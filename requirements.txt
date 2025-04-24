@@ -5,3 +5,4 @@ python-dotenv
 requests
 faiss-cpu
 python-docx
+numpy
