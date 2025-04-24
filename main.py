@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Request, Header
+from fastapi import FastAPI, Request, Header, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
-import hashlib, hmac, base64
+import hashlib, hmac, base64, json
 import requests
 import os
 
@@ -61,50 +61,57 @@ async def chat(req: ChatRequest):
 async def health():
     return {"status": "ok"}
 
-@app.post("/line-webhook")
-async def line_webhook(request: Request, x_line_signature: str = Header(default=None)):
-    if not x_line_signature:
-        return JSONResponse(status_code=400, content={"error": "Missing LINE signature header"})
 
+@app.post("/line-webhook")
+async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_line_signature: str = Header(default=None)):
     body = await request.body()
+
+    if not x_line_signature:
+        return JSONResponse(status_code=400, content={"error": "Missing LINE signature"})
+
     hash = hmac.new(LINE_SECRET.encode(), body, hashlib.sha256).digest()
     signature = base64.b64encode(hash).decode()
 
     if not hmac.compare_digest(signature, x_line_signature):
         return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
-    data = await request.json()
-    events = data.get("events", [])
+    data = json.loads(body)
+    background_tasks.add_task(process_line_event, data)
+    return {"status": "ok"}
 
+def process_line_event(data):
+    events = data.get("events", [])
     for event in events:
         if event.get("type") == "message" and event["message"].get("type") == "text":
             raw_text = event["message"]["text"]
             reply_token = event["replyToken"]
 
-            # 🔍 Check for personality prefix like @casual or @kid
+            # Detect @style and extract prompt
             if raw_text.startswith("@"):
                 parts = raw_text.split(" ", 1)
                 style = parts[0][1:].lower()
-                question = parts[1] if len(parts) > 1 else ""
+                prompt = parts[1] if len(parts) > 1 else ""
             else:
                 style = "default"
-                question = raw_text
+                prompt = raw_text
 
-            system_prompt = style_map.get(style, style_map["default"])
-            
-            
-            #answer = ask_chatgpt(question, system_prompt)
-            
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": question}
-                ]
-            )
-            answer = response.choices[0].message.content.strip()
+            system_msg = style_map.get(style, style_map["default"])
 
-            # 📤 Send reply to LINE
+            # Call OpenAI
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4
+                )
+                answer = response.choices[0].message.content.strip()
+            except Exception as e:
+                answer = "⚠️ Sorry, something went wrong."
+
+            # Send reply to LINE
             requests.post(
                 "https://api.line.me/v2/bot/message/reply",
                 headers={
@@ -116,5 +123,3 @@ async def line_webhook(request: Request, x_line_signature: str = Header(default=
                     "messages": [{"type": "text", "text": answer}]
                 }
             )
-
-    return {"status": "ok"}
