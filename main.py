@@ -76,29 +76,29 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_li
         return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
     data = json.loads(body)
+    print("LINE webhook received:", data)
     background_tasks.add_task(process_line_event, data)
     return {"status": "ok"}
 
 def process_line_event(data):
-    events = data.get("events", [])
-    for event in events:
-        if event.get("type") == "message" and event["message"].get("type") == "text":
-            raw_text = event["message"]["text"]
-            reply_token = event["replyToken"]
+    try:
+        events = data.get("events", [])
+        for event in events:
+            if event.get("type") == "message" and event["message"].get("type") == "text":
+                raw_text = event["message"]["text"]
+                reply_token = event["replyToken"]
 
-            # Detect @style and extract prompt
-            if raw_text.startswith("@"):
-                parts = raw_text.split(" ", 1)
-                style = parts[0][1:].lower()
-                prompt = parts[1] if len(parts) > 1 else ""
-            else:
-                style = "default"
-                prompt = raw_text
+                if raw_text.startswith("@"):
+                    parts = raw_text.split(" ", 1)
+                    style = parts[0][1:].lower()
+                    prompt = parts[1] if len(parts) > 1 else ""
+                else:
+                    style = "default"
+                    prompt = raw_text
 
-            system_msg = style_map.get(style, style_map["default"])
+                system_msg = style_map.get(style, style_map["default"])
 
-            # Call OpenAI
-            try:
+                # GPT reply
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
@@ -108,19 +108,21 @@ def process_line_event(data):
                     temperature=0.4
                 )
                 answer = response.choices[0].message.content.strip()
-            except Exception as e:
-                answer = "⚠️ Sorry, something went wrong."
 
-            # Send reply to LINE
-            res = requests.post(
-                "https://api.line.me/v2/bot/message/reply",
-                headers={
-                    "Authorization": f"Bearer {LINE_TOKEN}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "replyToken": reply_token,
-                    "messages": [{"type": "text", "text": answer}]
-                }
-            )
-            print("LINE reply status:", res.status_code, res.text)
+                # LINE reply
+                res = requests.post(
+                    "https://api.line.me/v2/bot/message/reply",
+                    headers={
+                        "Authorization": f"Bearer {LINE_TOKEN}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "replyToken": reply_token,
+                        "messages": [{"type": "text", "text": answer}]
+                    }
+                )
+                print("LINE reply status:", res.status_code, res.text)
+
+    except Exception as e:
+        print("❌ Error in background task:", e)
+
