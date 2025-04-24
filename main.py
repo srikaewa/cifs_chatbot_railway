@@ -76,7 +76,7 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_li
         return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
     data = json.loads(body)
-    print("LINE webhook received:", data)
+    #print("LINE webhook received:", data)
     background_tasks.add_task(process_line_event, data)
     return {"status": "ok"}
 
@@ -121,7 +121,7 @@ def process_line_event(data):
                         "messages": [{"type": "text", "text": answer}]
                     }
                 )
-                print("LINE reply status:", res.status_code, res.text)
+                #print("LINE reply status:", res.status_code, res.text)
 
     except Exception as e:
         print("❌ Error in background task:", e)
