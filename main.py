@@ -112,7 +112,7 @@ def process_line_event(data):
                 answer = "⚠️ Sorry, something went wrong."
 
             # Send reply to LINE
-            requests.post(
+            res = requests.post(
                 "https://api.line.me/v2/bot/message/reply",
                 headers={
                     "Authorization": f"Bearer {LINE_TOKEN}",
@@ -123,3 +123,4 @@ def process_line_event(data):
                     "messages": [{"type": "text", "text": answer}]
                 }
             )
+            print("LINE reply status:", res.status_code, res.text)
