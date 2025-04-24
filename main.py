@@ -7,6 +7,8 @@ import hashlib, hmac, base64, json
 import requests
 import os
 
+import re
+
 import traceback
 
 from qa_engine import index, chunks, query_index, ask_chatgpt
@@ -80,6 +82,13 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_li
     background_tasks.add_task(process_line_event, data)
     return {"status": "ok"}
 
+def strip_markdown(md_text):
+    clean = re.sub(r'#.*\n', '', md_text)             # remove headings
+    clean = re.sub(r'\*\*(.*?)\*\*', r'\\1', clean)  # bold
+    clean = re.sub(r'[_*`>]', '', clean)               # other markdown symbols
+    clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
+    return clean.strip()
+
 def process_line_event(data):
     try:
         events = data.get("events", [])
@@ -98,7 +107,7 @@ def process_line_event(data):
 
                 system_msg = style_map.get(style, style_map["default"])
 
-                # GPT reply
+                # Call OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
@@ -109,7 +118,10 @@ def process_line_event(data):
                 )
                 answer = response.choices[0].message.content.strip()
 
-                # LINE reply
+                # Remove markdown for LINE display
+                clean_answer = strip_markdown(answer)
+
+                # Send plain text reply to LINE
                 res = requests.post(
                     "https://api.line.me/v2/bot/message/reply",
                     headers={
@@ -118,11 +130,10 @@ def process_line_event(data):
                     },
                     json={
                         "replyToken": reply_token,
-                        "messages": [{"type": "text", "text": answer}]
+                        "messages": [{"type": "text", "text": clean_answer}]
                     }
                 )
-                #print("LINE reply status:", res.status_code, res.text)
-
+                print("LINE reply status:", res.status_code, res.text)
     except Exception as e:
         print("❌ Error in background task:", e)
 
