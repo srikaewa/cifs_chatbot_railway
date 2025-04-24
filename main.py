@@ -62,7 +62,10 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/line-webhook")
-async def line_webhook(request: Request, x_line_signature: str = Header(None)):
+async def line_webhook(request: Request, x_line_signature: str = Header(default=None)):
+    if not x_line_signature:
+        return JSONResponse(status_code=400, content={"error": "Missing LINE signature header"})
+
     body = await request.body()
     hash = hmac.new(LINE_SECRET.encode(), body, hashlib.sha256).digest()
     signature = base64.b64encode(hash).decode()
