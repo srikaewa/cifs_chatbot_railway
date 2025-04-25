@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Header, BackgroundTasks, UploadFile
+from fastapi import FastAPI, Request, Header, BackgroundTasks, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
