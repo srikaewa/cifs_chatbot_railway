@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Header, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, Request, Header, BackgroundTasks, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,8 +12,6 @@ import shutil
 import os
 
 import re
-
-import traceback
 
 from qa_engine import index, chunks, query_index, ask_chatgpt
 from qa_engine import (
@@ -72,6 +70,36 @@ async def upload_docx(file: UploadFile = File(...)):
 @app.get("/files")
 async def list_files():
     return [f.name for f in DATA_DIR.glob("*.docx")]
+
+@app.post("/reindex")
+async def reindex_all():
+    try:
+        all_chunks = []
+        for docx_file in DATA_DIR.glob("*.docx"):
+            paragraphs = load_all_docx_from_folder(str(DATA_DIR))
+            all_chunks = split_into_chunks(paragraphs)
+
+        with open(CHUNKS_PATH, "wb") as f:
+            pickle.dump(all_chunks, f)
+
+        embeddings = embed_chunks(all_chunks)
+        index = build_faiss_index(embeddings)
+        with open(INDEX_PATH, "wb") as f:
+            pickle.dump(index, f)
+
+        return {"message": "Reindexing complete"}
+    except Exception as e:
+        print("❌ Error during reindexing:", e)
+        raise HTTPException(status_code=500, detail="Failed to reindex")
+    
+@app.delete("/file/{filename}")
+async def delete_file(filename: str):
+    file_path = DATA_DIR / filename
+    if file_path.exists() and file_path.suffix == ".docx":
+        file_path.unlink()
+        return {"message": f"{filename} deleted"}
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
 
 # Web Chat
 class ChatRequest(BaseModel):
