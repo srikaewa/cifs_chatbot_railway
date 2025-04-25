@@ -3,9 +3,10 @@ hypercorn
 openai >= 1.0.0
 python-dotenv
 requests
-faiss-cpu
+faiss-cpu==1.7.4
 python-docx
 numpy
 python-multipart
 python-jose
-passlibs
+cryptography
+passlib
