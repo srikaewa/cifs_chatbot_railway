@@ -6,3 +6,4 @@ requests
 faiss-cpu
 python-docx
 numpy
+python-multipart
