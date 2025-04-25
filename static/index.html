@@ -2,96 +2,121 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>CIFS Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard - CIFS Chatbot</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 2rem;
-      background-color: #f7f9fb;
-      color: #333;
+      background-color: #f8f8f8;
     }
     h1 {
       color: #003366;
     }
-    .upload-box {
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 1rem;
+    .container {
+      background: white;
+      padding: 1.5rem;
       border-radius: 8px;
-      margin-bottom: 2rem;
+      max-width: 600px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    .file-list {
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 1rem;
-      border-radius: 8px;
+    input[type="file"] {
+      margin-bottom: 1rem;
     }
     button {
       background-color: #003366;
       color: white;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
+      padding: 0.6rem 1.2rem;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
     }
     button:hover {
       background-color: #0059b3;
     }
-    input[type="file"] {
-      margin-bottom: 1rem;
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .file-item span {
+      flex: 1;
+    }
+    .delete-btn {
+      background-color: crimson;
+      border: none;
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background-color: darkred;
     }
   </style>
 </head>
 <body>
-  <h1>🧠 CIFS Admin Dashboard</h1>
-
-  <div class="upload-box">
-    <h2>📁 Upload .docx Files</h2>
+  <div class="container">
+    <h1>🧠 CIFS Admin Dashboard</h1>
     <form id="uploadForm">
       <input type="file" name="file" accept=".docx" required />
-      <br />
       <button type="submit">Upload & Process</button>
     </form>
-    <p id="uploadStatus"></p>
-  </div>
-
-  <div class="file-list">
-    <h2>📄 Uploaded Documents</h2>
+    <button onclick="reindexAll()">🔄 Reindex All</button>
+    <h3>📄 Uploaded Files:</h3>
     <ul id="fileList"></ul>
   </div>
 
   <script>
-    const uploadForm = document.getElementById('uploadForm');
-    const uploadStatus = document.getElementById('uploadStatus');
-    const fileList = document.getElementById('fileList');
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      if (res.ok) {
+        alert('File uploaded and indexed!');
+        loadFiles();
+      } else {
+        alert('Upload failed!');
+      }
+    });
 
-    async function loadFileList() {
+    async function loadFiles() {
       const res = await fetch('/files');
       const files = await res.json();
+      const fileList = document.getElementById('fileList');
       fileList.innerHTML = '';
-      files.forEach(f => {
+      files.forEach(file => {
         const li = document.createElement('li');
-        li.textContent = f;
+        li.className = 'file-item';
+        const span = document.createElement('span');
+        span.textContent = file;
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.className = 'delete-btn';
+        delBtn.onclick = async () => {
+          if (confirm(`Delete ${file}?`)) {
+            await fetch(`/file/${file}`, { method: 'DELETE' });
+            loadFiles();
+          }
+        };
+        li.appendChild(span);
+        li.appendChild(delBtn);
         fileList.appendChild(li);
       });
     }
 
-    uploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(uploadForm);
-      uploadStatus.textContent = 'Uploading...';
-      const res = await fetch('/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const msg = await res.text();
-      uploadStatus.textContent = msg;
-      loadFileList();
-    });
+    async function reindexAll() {
+      const res = await fetch('/reindex', { method: 'POST' });
+      if (res.ok) {
+        alert('Reindexing complete!');
+      } else {
+        alert('Reindexing failed!');
+      }
+    }
 
-    loadFileList();
+    loadFiles();
   </script>
 </body>
 </html>
