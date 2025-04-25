@@ -9,6 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import shutil
 
+from datetime import datetime
+
 import os
 
 import re
@@ -41,6 +43,8 @@ DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 INDEX_PATH = Path("faiss_index.pkl")
 CHUNKS_PATH = Path("chunks.pkl")
+
+LOG_FILE = "admin.log"
     
 # Serve static admin.html at /admin
 app.mount("/admin", StaticFiles(directory="static", html=True), name="admin")
@@ -71,6 +75,11 @@ async def upload_docx(file: UploadFile = File(...)):
 async def list_files():
     return [f.name for f in DATA_DIR.glob("*.docx")]
 
+def write_log(message: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
 @app.post("/reindex")
 async def reindex_all():
     try:
@@ -87,10 +96,38 @@ async def reindex_all():
         with open(INDEX_PATH, "wb") as f:
             pickle.dump(index, f)
 
+        write_log(f"Reindexed {len(all_chunks)} chunks from {len(list(DATA_DIR.glob('*.docx')))} files.")
         return {"message": "Reindexing complete"}
     except Exception as e:
-        print("❌ Error during reindexing:", e)
+        write_log(f"❌ Error during reindexing: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to reindex")
+
+@app.get("/status")
+async def get_status():
+    try:
+        with open(CHUNKS_PATH, "rb") as f:
+            chunks = pickle.load(f)
+        last_modified = os.path.getmtime(CHUNKS_PATH)
+        updated_str = datetime.fromtimestamp(last_modified).strftime("%Y-%m-%d %H:%M:%S")
+        return {
+            "file_count": len(list(DATA_DIR.glob("*.docx"))),
+            "chunk_count": len(chunks),
+            "last_updated": updated_str
+        }
+    except Exception:
+        return {
+            "file_count": len(list(DATA_DIR.glob("*.docx"))),
+            "chunk_count": 0,
+            "last_updated": "N/A"
+        }
+
+@app.get("/logs")
+async def get_logs():
+    if not os.path.exists(LOG_FILE):
+        return []
+    with open(LOG_FILE, "r") as f:
+        lines = f.readlines()
+    return lines[-10:]
     
 @app.delete("/file/{filename}")
 async def delete_file(filename: str):

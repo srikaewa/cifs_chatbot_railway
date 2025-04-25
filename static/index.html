@@ -67,6 +67,14 @@
       font-size: 1.5rem;
       color: #003366;
     }
+    #status, #logs {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      background: #f2f2f2;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -77,24 +85,36 @@
       <button type="submit">Upload & Process</button>
     </form>
     <button onclick="reindexAll()">🔄 Reindex All</button>
+
     <h3>📄 Uploaded Files:</h3>
     <ul id="fileList"></ul>
+
+    <div id="status">📊 Loading status...</div>
+    <div id="logs">🧾 Loading logs...</div>
   </div>
 
-  <div id="spinner">⏳ Reindexing, please wait...</div>
+  <div id="spinner">⏳ Processing, please wait...</div>
 
   <script>
+    const spinner = document.getElementById('spinner');
+
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      document.getElementById('spinner').style.display = 'flex';
-      const formData = new FormData(e.target);
-      const res = await fetch('/upload', { method: 'POST', body: formData });
-      document.getElementById('spinner').style.display = 'none';
-      if (res.ok) {
-        alert('File uploaded and indexed!');
-        loadFiles();
-      } else {
-        alert('Upload failed!');
+      spinner.style.display = 'flex';
+      try {
+        const formData = new FormData(e.target);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        if (res.ok) {
+          alert('File uploaded and indexed!');
+          loadFiles();
+          loadStatus();
+        } else {
+          alert('Upload failed!');
+        }
+      } catch (err) {
+        alert('Error during upload: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
       }
     });
 
@@ -115,6 +135,7 @@
           if (confirm(`Delete ${file}?`)) {
             await fetch(`/file/${file}`, { method: 'DELETE' });
             loadFiles();
+            loadStatus();
           }
         };
         li.appendChild(span);
@@ -124,18 +145,46 @@
     }
 
     async function reindexAll() {
-      document.getElementById('spinner').style.display = 'flex';
-      const res = await fetch('/reindex', { method: 'POST' });
-      document.getElementById('spinner').style.display = 'none';
-      document.getElementById('spinner').style.display = 'none';
-      if (res.ok) {
-        alert('Reindexing complete!');
-      } else {
-        alert('Reindexing failed!');
+      spinner.style.display = 'flex';
+      try {
+        const res = await fetch('/reindex', { method: 'POST' });
+        if (res.ok) {
+          alert('Reindexing complete!');
+          loadStatus();
+        } else {
+          alert('Reindexing failed!');
+        }
+      } catch (err) {
+        alert('Error during reindex: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        document.getElementById('status').textContent =
+          `📊 Files: ${data.file_count}, Chunks: ${data.chunk_count}, Updated: ${data.last_updated}`;
+      } catch {
+        document.getElementById('status').textContent = '📊 Failed to load status.';
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch('/logs');
+        const logData = await res.json();
+        document.getElementById('logs').innerHTML = '🧾 Logs:<br>' + logData.map(x => `• ${x}`).join('<br>');
+      } catch {
+        document.getElementById('logs').textContent = '🧾 Failed to load logs.';
       }
     }
 
     loadFiles();
+    loadStatus();
+    loadLogs();
   </script>
 </body>
 </html>
