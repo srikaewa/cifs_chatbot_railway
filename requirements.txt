@@ -7,3 +7,5 @@ faiss-cpu
 python-docx
 numpy
 python-multipart
+python-jose
+passlibs
