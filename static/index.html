@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,9 +58,14 @@
     }
     #spinner {
       display: none;
-      margin: 1rem 0;
-      font-weight: bold;
-      color: #555;
+      position: fixed;
+      z-index: 999;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background-color: rgba(255, 255, 255, 0.7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      color: #003366;
     }
   </style>
 </head>
@@ -71,16 +77,19 @@
       <button type="submit">Upload & Process</button>
     </form>
     <button onclick="reindexAll()">🔄 Reindex All</button>
-    <div id="spinner">🔄 Reindexing...</div>
     <h3>📄 Uploaded Files:</h3>
     <ul id="fileList"></ul>
   </div>
 
+  <div id="spinner">⏳ Reindexing, please wait...</div>
+
   <script>
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      document.getElementById('spinner').style.display = 'flex';
       const formData = new FormData(e.target);
       const res = await fetch('/upload', { method: 'POST', body: formData });
+      document.getElementById('spinner').style.display = 'none';
       if (res.ok) {
         alert('File uploaded and indexed!');
         loadFiles();
@@ -115,10 +124,10 @@
     }
 
     async function reindexAll() {
-      const spinner = document.getElementById('spinner');
-      spinner.style.display = 'block';
+      document.getElementById('spinner').style.display = 'flex';
       const res = await fetch('/reindex', { method: 'POST' });
-      spinner.style.display = 'none';
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('spinner').style.display = 'none';
       if (res.ok) {
         alert('Reindexing complete!');
       } else {
