@@ -3,7 +3,7 @@ hypercorn
 openai >= 1.0.0
 python-dotenv
 requests
-faiss-cpu==1.7.4
+chromadb
 python-docx
 numpy
 python-multipart

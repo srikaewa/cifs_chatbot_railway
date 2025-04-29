@@ -1,8 +1,8 @@
-
 from fastapi import FastAPI, Request, UploadFile, File, Depends, Header, BackgroundTasks, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from openai import OpenAI
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -11,12 +11,17 @@ import os, shutil, pickle, re, json, requests, hmac, hashlib, base64
 from typing import List
 
 from qa_engine import (
+    build_chroma_collection, 
+    query_collection,
     load_all_docx_from_folder,
     split_into_chunks,
     embed_chunks,
     build_faiss_index,
     query_index
 )
+
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 DATA_DIR = Path("data")
@@ -102,35 +107,30 @@ async def reindex_all():
     try:
         paragraphs = load_all_docx_from_folder(str(DATA_DIR))
         chunks = split_into_chunks(paragraphs)
-        with open(CHUNKS_PATH, "wb") as f:
-            pickle.dump(chunks, f)
-        embeddings = embed_chunks(chunks)
-        index = build_faiss_index(embeddings)
-        with open(INDEX_PATH, "wb") as f:
-            pickle.dump(index, f)
+        build_chroma_collection(chunks)
         write_log(f"Reindexed {len(chunks)} chunks from {len(list(DATA_DIR.glob('*.docx')))} files.")
         return {"message": "Reindexing complete"}
     except Exception as e:
         write_log(f"❌ Error during reindexing: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to reindex")
 
-# Status
 @app.get("/status")
 async def get_status():
     try:
-        with open(CHUNKS_PATH, "rb") as f:
-            chunks = pickle.load(f)
-        last_modified = os.path.getmtime(CHUNKS_PATH)
-        updated_str = datetime.fromtimestamp(last_modified).strftime("%Y-%m-%d %H:%M:%S")
+        num_files = len(list(DATA_DIR.glob("*.docx")))
+        from chromadb import Client
+        from chromadb.config import Settings
+        chroma_client = Client(Settings(persist_directory="./chroma_db"))
+        collection = chroma_client.get_collection(name="cifs_collection")
+        stats = collection.count()
         return {
-            "file_count": len(list(DATA_DIR.glob("*.docx"))),
-            "chunk_count": len(chunks),
-            "last_updated": updated_str
+            "file_count": num_files,
+            "chunk_count": stats,
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     except:
         return {"file_count": 0, "chunk_count": 0, "last_updated": "N/A"}
 
-# Secure logs
 @app.get("/logs")
 async def get_logs(current_user: str = Depends(get_current_user)):
     if not os.path.exists(LOG_FILE):
@@ -139,10 +139,126 @@ async def get_logs(current_user: str = Depends(get_current_user)):
         lines = f.readlines()
     return lines[-10:]
 
-# Login
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if form_data.username != ADMIN_USERNAME or not verify_password(form_data.password, ADMIN_PASSWORD_HASH):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     token = create_access_token(data={"sub": ADMIN_USERNAME})
     return {"access_token": token, "token_type": "bearer"}
+
+class ChatRequest(BaseModel):
+    message: str
+    system: str = "You are a helpful forensic science assistant."
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    with open(INDEX_PATH, "rb") as f:
+        index = pickle.load(f)
+    with open(CHUNKS_PATH, "rb") as f:
+        chunks = pickle.load(f)
+
+    top_chunks = query_index(index, req.message, chunks)
+    context = "\n\n".join(top_chunks)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": f"{req.system}\n{context}"},
+            {"role": "user", "content": req.message}
+        ]
+    )
+    return {"response": response.choices[0].message.content.strip()}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+# LINE webhook with personality and markdown stripping
+LINE_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+LINE_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+# Map @style to personality prompt
+style_map = {
+    "default": "You are a professional forensic science expert who answers with technical accuracy and clarity.",
+    "friendly": "You are a friendly forensic science tutor who explains with warmth and helpful emojis 🧬😊.",
+    "kid": "You explain forensic science to a 10-year-old using simple words and fun emojis 🧒🔍🧪.",
+    "robotic": "You respond with only facts in a serious, mechanical tone. No emotion or personality 🤖.",
+    "casual": "You're a laid-back forensic expert who uses emojis 😎 and humor in your answers."
+}
+
+@app.post("/line-webhook")
+async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_line_signature: str = Header(default=None)):
+    body = await request.body()
+
+    if not x_line_signature:
+        return JSONResponse(status_code=400, content={"error": "Missing LINE signature"})
+
+    hash = hmac.new(LINE_SECRET.encode(), body, hashlib.sha256).digest()
+    signature = base64.b64encode(hash).decode()
+
+    if not hmac.compare_digest(signature, x_line_signature):
+        return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+
+    data = json.loads(body)
+    #print("LINE webhook received:", data)
+    background_tasks.add_task(process_line_event, data)
+    return {"status": "ok"}
+
+def strip_markdown(md_text):
+    clean = re.sub(r'#.*\n', '', md_text)             # remove headings
+    clean = re.sub(r'\*\*(.*?)\*\*', r'\\1', clean)  # bold
+    clean = re.sub(r'[_*`>]', '', clean)               # other markdown symbols
+    clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
+    return clean.strip()
+
+def process_line_event(data):
+    try:
+        with open(INDEX_PATH, "rb") as f:
+            index = pickle.load(f)
+        with open(CHUNKS_PATH, "rb") as f:
+            chunks = pickle.load(f)
+
+        events = data.get("events", [])
+        for event in events:
+            if event.get("type") == "message" and event["message"].get("type") == "text":
+                raw_text = event["message"]["text"]
+                reply_token = event["replyToken"]
+
+                if raw_text.startswith("@"):
+                    parts = raw_text.split(" ", 1)
+                    style = parts[0][1:].lower()
+                    prompt = parts[1] if len(parts) > 1 else ""
+                else:
+                    style = "default"
+                    prompt = raw_text
+
+                system_msg = style_map.get(style, style_map["default"])
+
+                top_chunks = query_index(index, prompt, chunks)
+                context = "\n\n".join(top_chunks)
+
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": f"{system_msg}\n{context}"},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                answer = response.choices[0].message.content.strip()
+                plain_answer = strip_markdown(answer)
+
+                res = requests.post(
+                    "https://api.line.me/v2/bot/message/reply",
+                    headers={
+                        "Authorization": f"Bearer {LINE_TOKEN}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "replyToken": reply_token,
+                        "messages": [{"type": "text", "text": plain_answer}]
+                    }
+                )
+                print("LINE reply status:", res.status_code, res.text)
+    except Exception as e:
+        print("❌ Error in background task:", e)
+

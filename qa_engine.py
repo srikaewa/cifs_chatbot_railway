@@ -1,16 +1,23 @@
+
 import os
 import openai
-import faiss
+import chromadb
 import numpy as np
 from glob import glob
 from docx import Document
 from dotenv import load_dotenv
 from typing import List
+from chromadb.config import Settings
 
 load_dotenv()
 
 EMBED_MODEL = "text-embedding-3-small"
 GPT_MODEL = "gpt-4o-mini"
+
+chroma_client = chromadb.Client(Settings(
+    persist_directory="./chroma_db"
+))
+COLLECTION_NAME = "cifs_collection"
 
 def load_all_docx_from_folder(folder: str):
     all_paragraphs = []
@@ -20,12 +27,7 @@ def load_all_docx_from_folder(folder: str):
         all_paragraphs.extend(paragraphs)
     return all_paragraphs
 
-def load_text_from_docx(filepath: str) -> List[str]:
-    doc = Document(filepath)
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    return paragraphs
-
-def split_into_chunks(paragraphs: List[str], max_tokens=500) -> List[str]:
+def split_into_chunks(paragraphs: List[str], max_tokens=500):
     chunks = []
     current_chunk = ""
     for para in paragraphs:
@@ -41,16 +43,31 @@ def embed_chunks(chunks: List[str]):
     response = openai.embeddings.create(input=chunks, model=EMBED_MODEL)
     return np.array([r.embedding for r in response.data])
 
-def build_faiss_index(embeddings: np.ndarray):
-    dim = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dim)
-    index.add(embeddings)
-    return index
+def build_chroma_collection(chunks: List[str]):
+    if COLLECTION_NAME in [c.name for c in chroma_client.list_collections()]:
+        chroma_client.delete_collection(name=COLLECTION_NAME)
+    collection = chroma_client.create_collection(name=COLLECTION_NAME)
 
-def query_index(index, query, chunks, top_k=3):
-    query_emb = openai.embeddings.create(input=[query], model=EMBED_MODEL).data[0].embedding
-    D, I = index.search(np.array([query_emb]), top_k)
-    return [chunks[i] for i in I[0]]
+    embeddings = embed_chunks(chunks)
+    ids = [f"chunk_{i}" for i in range(len(chunks))]
+
+    collection.add(
+        embeddings=embeddings.tolist(),
+        documents=chunks,
+        ids=ids,
+    )
+    chroma_client.persist()
+    return collection
+
+def query_collection(query: str, top_k=3):
+    collection = chroma_client.get_collection(name=COLLECTION_NAME)
+    query_emb = embed_chunks([query])[0].tolist()
+    results = collection.query(
+        query_embeddings=[query_emb],
+        n_results=top_k,
+        include=["documents"]
+    )
+    return results["documents"][0]
 
 def ask_chatgpt(prompt: str, system_msg: str) -> str:
     response = openai.ChatCompletion.create(
@@ -62,11 +79,3 @@ def ask_chatgpt(prompt: str, system_msg: str) -> str:
         temperature=0.4
     )
     return response['choices'][0]['message']['content'].strip()
-
-
-# Build once on startup
-#paragraphs = load_text_from_docx("data/ความรู้เบื้องต้นด้านนิติวิทยาศาสตร์.docx")
-paragraphs = load_all_docx_from_folder("data")
-chunks = split_into_chunks(paragraphs)
-embeddings = embed_chunks(chunks)
-index = build_faiss_index(embeddings)
