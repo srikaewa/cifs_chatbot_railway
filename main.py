@@ -16,7 +16,6 @@ from qa_engine import (
     load_all_docx_from_folder,
     split_into_chunks,
     embed_chunks,
-    build_faiss_index,
     query_index
 )
 
