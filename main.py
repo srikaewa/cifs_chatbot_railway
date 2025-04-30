@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, UploadFile, File, Depends, Header, BackgroundTasks, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +26,13 @@ from qa_engine import (
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("✅ Server is starting...")
+    yield
+    print("🛑 Server is shutting down...")
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,6 +91,11 @@ def strip_markdown(md_text):
     clean = re.sub(r'[_*`>]', '', clean)
     clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)
     return clean.strip()
+
+@app.on_event("startup")
+async def startup_log():
+    print("✅ Server is starting...")
+
 
 # Upload endpoint
 @app.post("/upload")
