@@ -168,13 +168,13 @@
           headers: setAuthHeaders()
         });
         if (res.ok) {
-          alert("Reindexed!");
+          alert("Reindexing done!");
           loadStatus();
         } else {
           alert("Reindex failed.");
         }
       } catch {
-        alert("Error calling /reindex");
+        alert("Error calling /reindex" + err.message);
       } finally {
         spinner.style.display = "none";
       }

@@ -133,7 +133,7 @@ async def reindex_all():
         return {"message": "Reindexing complete"}
     except Exception as e:
         write_log(f"❌ Error during reindexing: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to reindex")
+        raise HTTPException(status_code=500, detail="Failed to reindex: " + str(e))
 
 @app.get("/status")
 async def get_status():
