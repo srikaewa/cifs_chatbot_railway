@@ -59,7 +59,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 #ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", pwd_context.hash("admin123"))
-ADMIN_PASSWORD_HASH = base64.b64decode(os.getenv("ADMIN_PASSWORD_B64")).decode()
+#ADMIN_PASSWORD_HASH = base64.b64decode(os.getenv("ADMIN_PASSWORD_B64")).decode()
+if "ADMIN_PASSWORD_B64" in os.environ:
+    ADMIN_PASSWORD_HASH = base64.b64decode(os.getenv("ADMIN_PASSWORD_B64")).decode()
+else:
+    ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
 
 # JWT helpers
 def verify_password(plain_password, hashed_password):
