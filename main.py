@@ -12,6 +12,8 @@ from pathlib import Path
 import os, shutil, pickle, re, json, requests, hmac, hashlib, base64
 from typing import List
 
+import base64
+
 from pydantic import BaseModel
 
 
@@ -56,7 +58,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", pwd_context.hash("admin123"))
+#ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", pwd_context.hash("admin123"))
+ADMIN_PASSWORD_HASH = base64.b64decode(os.getenv("ADMIN_PASSWORD_B64")).decode()
 
 # JWT helpers
 def verify_password(plain_password, hashed_password):
