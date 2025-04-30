@@ -37,8 +37,6 @@ app.add_middleware(
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
-INDEX_PATH = Path("faiss_index.pkl")
-CHUNKS_PATH = Path("chunks.pkl")
 LOG_FILE = "admin.log"
 
 # Mount static admin UI
@@ -163,11 +161,6 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    with open(INDEX_PATH, "rb") as f:
-        index = pickle.load(f)
-    with open(CHUNKS_PATH, "rb") as f:
-        chunks = pickle.load(f)
-
     top_chunks = query_collection(req.message)
     context = "\n\n".join(top_chunks)
 
