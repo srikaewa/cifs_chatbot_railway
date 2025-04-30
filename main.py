@@ -162,10 +162,22 @@ async def get_logs(current_user: str = Depends(get_current_user)):
 
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    if form_data.username != ADMIN_USERNAME or not verify_password(form_data.password, ADMIN_PASSWORD_HASH):
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    print("🔐 Login attempt:", form_data.username)
+    print("🔐 Provided password:", form_data.password)
+    print("🔐 Stored hash:", ADMIN_PASSWORD_HASH)
+    
+    if form_data.username != ADMIN_USERNAME:
+        print("❌ Username mismatch")
+        raise HTTPException(status_code=401, detail="Incorrect username")
+
+    if not verify_password(form_data.password, ADMIN_PASSWORD_HASH):
+        print("❌ Password mismatch")
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    
     token = create_access_token(data={"sub": ADMIN_USERNAME})
+    print("✅ Login successful")
     return {"access_token": token, "token_type": "bearer"}
+
 
 class ChatRequest(BaseModel):
     message: str
