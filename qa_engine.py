@@ -44,18 +44,24 @@ def embed_chunks(chunks: List[str]):
     return np.array([r.embedding for r in response.data])
 
 def build_chroma_collection(chunks: List[str]):
+    print("🧹 Deleting old collection (if exists)...")
     if COLLECTION_NAME in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=COLLECTION_NAME)
+
+    print("📦 Creating new collection...")
     collection = chroma_client.create_collection(name=COLLECTION_NAME)
 
     embeddings = embed_chunks(chunks)
     ids = [f"chunk_{i}" for i in range(len(chunks))]
 
+    print(f"📥 Adding {len(chunks)} chunks into Chroma...")
     collection.add(
         embeddings=embeddings.tolist(),
         documents=chunks,
         ids=ids,
     )
+
+    print("✅ Chroma collection built successfully.")
     return collection
 
 def query_collection(query: str, top_k=3):
