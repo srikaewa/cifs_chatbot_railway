@@ -60,6 +60,10 @@ def build_chroma_collection(chunks: List[str]):
     return collection
 
 def query_collection(query: str, top_k=3):
+    if COLLECTION_NAME not in [c.name for c in chroma_client.list_collections()]:
+        chroma_client.create_collection(name=COLLECTION_NAME)
+        return ["No knowledge base available. Please upload and reindex."]
+
     collection = chroma_client.get_collection(name=COLLECTION_NAME)
     query_emb = embed_chunks([query])[0].tolist()
     results = collection.query(

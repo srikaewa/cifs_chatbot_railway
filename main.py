@@ -174,6 +174,9 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat(req: ChatRequest):
     top_chunks = query_collection(req.message)
+    if "No knowledge base" in top_chunks[0]:
+        return {"response": "📂 The knowledge base is empty. Please upload and reindex your files first."}
+    
     context = "\n\n".join(top_chunks)
 
     response = client.chat.completions.create(
