@@ -11,6 +11,9 @@ from pathlib import Path
 import os, shutil, pickle, re, json, requests, hmac, hashlib, base64
 from typing import List
 
+from pydantic import BaseModel
+
+
 from qa_engine import (
     build_chroma_collection, 
     query_collection,
