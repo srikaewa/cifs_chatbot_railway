@@ -97,6 +97,7 @@
   <script>
 
     const spinner = document.getElementById("spinner");
+    spinner.style.display = "none";
     const token = localStorage.getItem("token");
 
     if (token) {
@@ -222,7 +223,7 @@
         });
         const lines = await res.json();
         document.getElementById("logs").innerHTML =
-          "🧾 Logs:<br>" + lines.map(line => "• " + line).join("<br>");
+          "🧾 Logs:<br>" + lines.reverse().map(line => "• " + line).join("<br>");
       } catch {
         document.getElementById("logs").textContent = "🧾 Log access denied or failed.";
       }
