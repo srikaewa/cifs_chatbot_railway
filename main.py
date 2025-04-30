@@ -17,7 +17,6 @@ from qa_engine import (
     load_all_docx_from_folder,
     split_into_chunks,
     embed_chunks,
-    query_index
 )
 
 
@@ -166,7 +165,7 @@ async def chat(req: ChatRequest):
     with open(CHUNKS_PATH, "rb") as f:
         chunks = pickle.load(f)
 
-    top_chunks = query_index(index, req.message, chunks)
+    top_chunks = query_collection(req.message)
     context = "\n\n".join(top_chunks)
 
     response = client.chat.completions.create(
@@ -243,7 +242,7 @@ def process_line_event(data):
 
                 system_msg = style_map.get(style, style_map["default"])
 
-                top_chunks = query_index(index, prompt, chunks)
+                top_chunks = query_collection(prompt)
                 context = "\n\n".join(top_chunks)
 
                 response = client.chat.completions.create(
