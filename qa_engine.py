@@ -56,7 +56,6 @@ def build_chroma_collection(chunks: List[str]):
         documents=chunks,
         ids=ids,
     )
-    chroma_client.persist()
     return collection
 
 def query_collection(query: str, top_k=3):
