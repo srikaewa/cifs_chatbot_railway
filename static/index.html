@@ -107,10 +107,12 @@
         })
         .then(loadDashboard)
         .catch(() => {
+          console.log("Stuck here 1");
           localStorage.removeItem("token");
           document.getElementById("loginForm").style.display = "block";
         });
     } else {
+      console.log("Stuck here 2");
       document.getElementById("loginForm").style.display = "block";
     }
 
