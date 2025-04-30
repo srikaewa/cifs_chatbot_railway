@@ -1,0 +1,236 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure Admin Dashboard - CIFS</title>
+  <!-- styling and script omitted here for brevity -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background-color: #f8f8f8;
+    }
+    .container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      max-width: 900px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #003366; }
+    button, input[type="submit"] {
+      background-color: #003366;
+      color: white;
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 0.5rem 0;
+    }
+    button:hover, input[type="submit"]:hover { background-color: #0059b3; }
+    input[type="text"], input[type="password"], input[type="file"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.3rem 0 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    #spinner {
+      display: none;
+      position: fixed;
+      z-index: 999;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background-color: rgba(255,255,255,0.7);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      color: #003366;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .delete-btn {
+      background-color: crimson;
+      border: none;
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+      cursor: pointer;
+    }
+    .delete-btn:hover { background-color: darkred; }
+    #loginForm, #adminPanel { display: none; }
+    #status, #logs { background: #f2f2f2; padding: 0.6rem; border-radius: 6px; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧠 Secure CIFS Admin Dashboard</h1>
+
+    <div id="loginForm">
+      <h3>🔐 Admin Login</h3>
+      <input id="username" type="text" placeholder="Username" />
+      <input id="password" type="password" placeholder="Password" />
+      <button onclick="login()">Login</button>
+    </div>
+
+    <div id="adminPanel" style="display: none;">
+      <form id="uploadForm">
+        <input type="file" name="file" accept=".docx" required />
+        <input type="submit" value="Upload & Index" />
+      </form>
+      <button onclick="reindexAll()">🔄 Reindex All</button>
+      <h3>📄 Uploaded Files:</h3>
+      <ul id="fileList"></ul>
+      <div id="status">📊 Loading status...</div>
+      <div id="logs">🧾 Loading logs...</div>
+    </div>
+  </div>
+
+  <div id="spinner">⏳ Please wait...</div>
+
+  <script>
+
+    const spinner = document.getElementById("spinner");
+    const token = localStorage.getItem("token");
+
+    function setAuthHeaders(headers = {}) {
+      const t = localStorage.getItem("token");
+      if (t) headers["Authorization"] = "Bearer " + t;
+      return headers;
+    }
+
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const body = new URLSearchParams();
+      body.append("username", username);
+      body.append("password", password);
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+        if (!res.ok) return alert("Login failed");
+        const data = await res.json();
+        localStorage.setItem("token", data.access_token);
+        loadDashboard();
+      } catch (err) {
+        alert("Error logging in.");
+      }
+    }
+
+    async function loadDashboard() {
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("adminPanel").style.display = "block";
+      loadFiles();
+      loadStatus();
+      loadLogs();
+    }
+
+    async function loadFiles() {
+      const res = await fetch("/files");
+      const files = await res.json();
+      const list = document.getElementById("fileList");
+      list.innerHTML = "";
+      files.forEach(file => {
+        const li = document.createElement("li");
+        li.className = "file-item";
+        const span = document.createElement("span");
+        span.textContent = file;
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "delete-btn";
+        btn.onclick = async () => {
+          if (confirm("Delete " + file + "?")) {
+            await fetch("/file/" + file, { method: "DELETE" });
+            loadFiles();
+            loadStatus();
+          }
+        };
+        li.appendChild(span);
+        li.appendChild(btn);
+        list.appendChild(li);
+      });
+    }
+
+    async function reindexAll() {
+      spinner.style.display = "flex";
+      try {
+        const res = await fetch("/reindex", {
+          method: "POST",
+          headers: setAuthHeaders()
+        });
+        if (res.ok) {
+          alert("Reindexing done!");
+          loadStatus();
+        } else {
+          alert("Reindex failed.");
+        }
+      } catch {
+        alert("Error calling /reindex" + err.message);
+      } finally {
+        spinner.style.display = "none";
+      }
+    }
+
+    async function loadStatus() {
+      const res = await fetch("/status");
+      const data = await res.json();
+      document.getElementById("status").textContent =
+        `📊 Files: ${data.file_count}, Chunks: ${data.chunk_count}, Updated: ${data.last_updated}`;
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch("/logs", {
+          headers: setAuthHeaders()
+        });
+        const lines = await res.json();
+        document.getElementById("logs").innerHTML =
+          "🧾 Logs:<br>" + lines.map(line => "• " + line).join("<br>");
+      } catch {
+        document.getElementById("logs").textContent = "🧾 Log access denied or failed.";
+      }
+    }
+
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      spinner.style.display = "flex";
+      try {
+        const formData = new FormData(e.target);
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+        if (res.ok) {
+          alert("Uploaded and indexed!");
+          loadFiles();
+          loadStatus();
+        } else {
+          alert("Upload failed!");
+        }
+      } catch (err) {
+        alert("Upload error.");
+      } finally {
+        spinner.style.display = "none";
+      }
+    });
+
+    if (token) {
+      loadDashboard();
+    } else {
+      document.getElementById("loginForm").style.display = "block";
+    }
+
+  </script>
+</body>
+</html>
