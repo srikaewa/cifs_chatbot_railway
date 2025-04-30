@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, UploadFile, File, Depends, Header, BackgroundTasks, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from openai import OpenAI
 from jose import jwt, JWTError
@@ -23,6 +24,15 @@ from qa_engine import (
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://srikaewa.github.io"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 INDEX_PATH = Path("faiss_index.pkl")
