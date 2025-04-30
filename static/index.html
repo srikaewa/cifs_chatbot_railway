@@ -99,6 +99,22 @@
     const spinner = document.getElementById("spinner");
     const token = localStorage.getItem("token");
 
+    if (token) {
+      fetch("/logs", { headers: { Authorization: "Bearer " + token } })
+        .then(res => {
+          if (!res.ok) throw new Error("Token invalid");
+          return res.json();
+        })
+        .then(loadDashboard)
+        .catch(() => {
+          localStorage.removeItem("token");
+          document.getElementById("loginForm").style.display = "block";
+        });
+    } else {
+      document.getElementById("loginForm").style.display = "block";
+    }
+
+
     function setAuthHeaders(headers = {}) {
       const t = localStorage.getItem("token");
       if (t) headers["Authorization"] = "Bearer " + t;
@@ -174,20 +190,21 @@
       try {
         const res = await fetch("/reindex", {
           method: "POST",
-          headers: setAuthHeaders()
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") }
         });
         if (res.ok) {
-          alert("Reindexing done!");
-          loadStatus();
+          alert("Reindexing complete!");
         } else {
-          alert("Reindex failed.");
+          const errText = await res.text();
+          alert("Reindex failed: " + errText);
         }
-      } catch {
-        alert("Error calling /reindex" + err.message);
+      } catch (err) {
+        alert("Reindex error: " + err.message);
       } finally {
         spinner.style.display = "none";
       }
     }
+    
 
     async function loadStatus() {
       const res = await fetch("/status");
