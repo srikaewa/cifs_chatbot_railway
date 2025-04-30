@@ -99,6 +99,12 @@
     const spinner = document.getElementById("spinner");
     const token = localStorage.getItem("token");
 
+    if (token) {
+      loadDashboard(); // assumes token is valid
+    } else {
+      document.getElementById("loginForm").style.display = "block";
+    }
+
     function setAuthHeaders(headers = {}) {
       const t = localStorage.getItem("token");
       if (t) headers["Authorization"] = "Bearer " + t;
