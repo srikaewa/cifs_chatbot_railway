@@ -166,6 +166,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     print("🔐 Provided password:", form_data.password)
     print("🔐 Stored hash:", ADMIN_PASSWORD_HASH)
     
+    print(f"HASH LEN: {len(ADMIN_PASSWORD_HASH)}")
+    print(f"HASH TEXT: {repr(ADMIN_PASSWORD_HASH)}")
+
+    
     if form_data.username != ADMIN_USERNAME:
         print("❌ Username mismatch")
         raise HTTPException(status_code=401, detail="Incorrect username")
