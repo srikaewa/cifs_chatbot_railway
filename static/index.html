@@ -99,12 +99,6 @@
     const spinner = document.getElementById("spinner");
     const token = localStorage.getItem("token");
 
-    if (token) {
-      loadDashboard(); // assumes token is valid
-    } else {
-      document.getElementById("loginForm").style.display = "block";
-    }
-
     function setAuthHeaders(headers = {}) {
       const t = localStorage.getItem("token");
       if (t) headers["Authorization"] = "Bearer " + t;
@@ -135,11 +129,18 @@
     }
 
     async function loadDashboard() {
-      document.getElementById("loginForm").style.display = "none";
-      document.getElementById("adminPanel").style.display = "block";
-      loadFiles();
-      loadStatus();
-      loadLogs();
+      try {
+        document.getElementById("loginForm").style.display = "none";
+        document.getElementById("adminPanel").style.display = "block";
+        await loadFiles();
+        await loadStatus();
+        await loadLogs();
+      } catch (err) {
+        alert("Token may be invalid. Please login again.");
+        localStorage.removeItem("token");
+        document.getElementById("loginForm").style.display = "block";
+        document.getElementById("adminPanel").style.display = "none";
+      }
     }
 
     async function loadFiles() {
