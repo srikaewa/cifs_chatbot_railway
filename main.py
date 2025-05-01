@@ -94,11 +94,6 @@ def strip_markdown(md_text):
     clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)
     return clean.strip()
 
-@app.on_event("startup")
-async def startup_log():
-    print("✅ Server is starting...")
-
-
 # Upload endpoint
 @app.post("/upload")
 async def upload_docx(file: UploadFile = File(...)):

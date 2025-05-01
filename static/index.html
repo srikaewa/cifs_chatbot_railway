@@ -177,7 +177,7 @@
         btn.textContent = "🗑️";
         btn.className = "delete-btn";
         btn.onclick = async () => {
-          if (confirm("Delete " + file + "? Reindexing will automatically be processed after deletion..." )) {
+          if (confirm("Delete " + file + "?" )) {
             await fetch("/file/" + file, { method: "DELETE" });
             loadFiles();
             loadStatus();
