@@ -71,7 +71,8 @@
 </head>
 <body>
   <div class="container">
-    <h1>🧠 Secure CIFS Admin Dashboard</h1>
+    <h1>🧠 Secure CIFS Admin Dashboard&nbsp;&nbsp;<button onclick="logout()">🚪 Logout</button></h1> 
+
 
     <div id="loginForm">
       <h3>🔐 Admin Login</h3>
@@ -259,6 +260,11 @@
       document.getElementById("loginForm").style.display = "block";
     }
 
+    function logout() {
+      localStorage.removeItem("token");
+      alert("Logged out.");
+      location.reload();
+    }
   </script>
 </body>
 </html>
