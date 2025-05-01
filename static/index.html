@@ -199,6 +199,9 @@
         });
         if (res.ok) {
           alert("Reindexing complete!");
+          await loadFiles();     // ⬅️ update file list
+          await loadStatus();    // ⬅️ update chunk count and time
+          await loadLogs();
         } else {
           const errText = await res.text();
           alert("Reindex failed: " + errText);
