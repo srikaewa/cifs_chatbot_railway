@@ -115,6 +115,13 @@ async def delete_file(filename: str):
     if file_path.exists() and file_path.suffix == ".docx":
         file_path.unlink()
         write_log(f"Deleted file: {filename}")
+        
+        # ✅ Reindex updated knowledge base
+        paragraphs = load_all_docx_from_folder(str(DATA_DIR))
+        chunks = split_into_chunks(paragraphs)
+        build_chroma_collection(chunks)
+        write_log("Reindexed after file deletion.")
+        
         return {"message": f"{filename} deleted"}
     else:
         raise HTTPException(status_code=404, detail="File not found")
