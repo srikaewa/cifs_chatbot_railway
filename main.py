@@ -250,6 +250,9 @@ def strip_markdown(md_text):
     clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
     return clean.strip()
 
+INDEX_PATH = "data/index.pkl"
+CHUNKS_PATH = "data/chunks.pkl"
+
 def process_line_event(data):
     try:
         with open(INDEX_PATH, "rb") as f:
