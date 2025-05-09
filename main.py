@@ -250,8 +250,8 @@ def strip_markdown(md_text):
     clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
     return clean.strip()
 
-INDEX_PATH = "data/index.pkl"
-CHUNKS_PATH = "data/chunks.pkl"
+INDEX_PATH = ".chroma_db/index.pkl"
+CHUNKS_PATH = ".chroma_db/chunks.pkl"
 
 def process_line_event(data):
     try:
