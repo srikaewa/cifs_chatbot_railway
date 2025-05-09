@@ -86,14 +86,6 @@ def write_log(message: str):
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 
-# Markdown stripping for LINE
-def strip_markdown(md_text):
-    clean = re.sub(r'#.*\n', '', md_text)
-    clean = re.sub(r'\*\*(.*?)\*\*', r'\1', clean)
-    clean = re.sub(r'[_*`>]', '', clean)
-    clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)
-    return clean.strip()
-
 # Upload endpoint
 @app.post("/upload")
 async def upload_docx(file: UploadFile = File(...)):
@@ -227,7 +219,7 @@ style_map = {
 @app.post("/line-webhook")
 async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_line_signature: str = Header(default=None)):
     body = await request.body()
-    print("🔔 Webhook triggered:", body)
+    #print("🔔 Webhook triggered:", body)
 
     if not x_line_signature:
         return JSONResponse(status_code=400, content={"error": "Missing LINE signature"})
@@ -244,10 +236,11 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_li
     return {"status": "ok"}
 
 def strip_markdown(md_text):
-    clean = re.sub(r'#.*\n', '', md_text)             # remove headings
-    clean = re.sub(r'\*\*(.*?)\*\*', r'\\1', clean)  # bold
-    clean = re.sub(r'[_*`>]', '', clean)               # other markdown symbols
-    clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
+    clean = re.sub(r'#.*\n', '', md_text)  # remove headings
+    clean = re.sub(r'\*\*(.*?)\*\*', r'\1', clean)  # bold
+    clean = re.sub(r'[_*`>]', '', clean)  # symbols
+    clean = re.sub(r'^[-*] ', '', clean, flags=re.MULTILINE)  # bullets
+    clean = re.sub(r'^\\?(\d+):', r'\1.', clean, flags=re.MULTILINE)  # fix \1: → 1.
     return clean.strip()
 
 def process_line_event(data):
