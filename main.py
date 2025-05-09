@@ -227,6 +227,7 @@ style_map = {
 @app.post("/line-webhook")
 async def line_webhook(request: Request, background_tasks: BackgroundTasks, x_line_signature: str = Header(default=None)):
     body = await request.body()
+    print("🔔 Webhook triggered:", body)
 
     if not x_line_signature:
         return JSONResponse(status_code=400, content={"error": "Missing LINE signature"})
