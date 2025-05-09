@@ -250,16 +250,8 @@ def strip_markdown(md_text):
     clean = re.sub(r'^- ', '', clean, flags=re.MULTILINE)  # bullets
     return clean.strip()
 
-INDEX_PATH = "./chroma_db/index.pkl"
-CHUNKS_PATH = "./chroma_db/chunks.pkl"
-
 def process_line_event(data):
     try:
-        with open(INDEX_PATH, "rb") as f:
-            index = pickle.load(f)
-        with open(CHUNKS_PATH, "rb") as f:
-            chunks = pickle.load(f)
-
         events = data.get("events", [])
         for event in events:
             if event.get("type") == "message" and event["message"].get("type") == "text":
@@ -275,7 +267,6 @@ def process_line_event(data):
                     prompt = raw_text
 
                 system_msg = style_map.get(style, style_map["default"])
-
                 top_chunks = query_collection(prompt)
                 context = "\n\n".join(top_chunks)
 
