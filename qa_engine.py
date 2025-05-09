@@ -76,7 +76,9 @@ def query_collection(query: str, top_k=3):
         n_results=top_k,
         include=["documents"]
     )
-    return results["documents"][0]
+    docs = results.get("documents", [[]])[0]
+    return docs if docs else ["(ไม่พบข้อมูลที่เกี่ยวข้องในคลังความรู้)"]
+
 
 def ask_chatgpt(prompt: str, system_msg: str) -> str:
     response = openai.ChatCompletion.create(
